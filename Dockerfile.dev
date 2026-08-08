@@ -3,7 +3,12 @@
 
 FROM golang:1.26.1-alpine AS builder
 
-ENV GO111MODULE=on CGO_ENABLED=0
+ARG GOPROXY=https://proxy.golang.org|https://goproxy.cn|direct
+ARG GOSUMDB=sum.golang.org
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOPROXY=${GOPROXY} \
+    GOSUMDB=${GOSUMDB}
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
@@ -11,8 +16,16 @@ ENV GOEXPERIMENT=greenteagc
 
 WORKDIR /build
 
-ADD go.mod go.sum ./
-RUN go mod download
+COPY go.mod go.sum ./
+COPY relaykit/go.mod relaykit/go.sum ./relaykit/
+RUN --mount=type=cache,target=/go/pkg/mod \
+    for attempt in 1 2 3; do \
+        echo "go mod download attempt ${attempt}/3..." >&2; \
+        go mod download -x && break; \
+        if [ "$attempt" = "3" ]; then exit 1; fi; \
+        echo "go mod download failed, retrying..." >&2; \
+        sleep 3; \
+    done
 
 COPY . .
 
