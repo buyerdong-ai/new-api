@@ -21,7 +21,9 @@ ADD go.mod go.sum ./
 # relaykit is a local submodule referenced via replace; its go.mod must be
 # present for go mod download to resolve the main module graph.
 ADD relaykit/go.mod ./relaykit/go.mod
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go mod download
+
 
 COPY . .
 COPY --from=builder /build/web/dist ./web/dist

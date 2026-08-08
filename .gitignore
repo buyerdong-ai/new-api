@@ -34,6 +34,26 @@ electron/dist
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp
+.env
+.env.*
+!.env.example
+
+data/
+logs/
+backups/
+
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+*.pem
+*.key
+*.crt
+
+new-api
 
 # Local-only live probes and scratch test workspaces.
 .local-tests/

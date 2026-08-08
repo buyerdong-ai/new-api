@@ -3,12 +3,13 @@ package doubao
 import (
 	"bytes"
 	"fmt"
+	"github.com/QuantumNous/new-api/common"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/QuantumNous/new-api/common"
 
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
@@ -99,6 +100,28 @@ type responseTask struct {
 	UpdatedAt int64 `json:"updated_at"`
 }
 
+func isWeiMetaBaseURL(baseURL string) bool {
+	parsed, err := url.Parse(baseURL)
+	return err == nil &&
+		strings.EqualFold(parsed.Scheme, "https") &&
+		strings.EqualFold(parsed.Hostname(), "api.weimeta.cn")
+}
+
+func buildTaskURL(baseURL, taskID string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	path := "/api/v3/contents/generations/tasks"
+	if isWeiMetaBaseURL(baseURL) {
+		path = "/volcengine/v1/contents/generations/tasks"
+	}
+
+	if taskID != "" {
+		path += "/" + url.PathEscape(taskID)
+	}
+
+	return baseURL + path
+}
+
 // ============================
 // Adaptor implementation
 // ============================
@@ -124,7 +147,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return buildTaskURL(a.baseURL, ""), nil
+
 }
 
 // BuildRequestHeader sets required headers.
@@ -245,7 +269,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	uri := buildTaskURL(baseUrl, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
