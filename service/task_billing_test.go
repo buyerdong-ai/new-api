@@ -135,11 +135,23 @@ func makeTask(userId, channelId, quota, tokenId int, billingSource string, subsc
 			TokenId:        tokenId,
 			BillingContext: &model.TaskBillingContext{
 				ModelPrice:      0.02,
+				HasModelRatio:   true,
 				GroupRatio:      1.0,
 				OriginModelName: "test-model",
 			},
 		},
 	}
+}
+
+func TestPriceDataModelUserGroupMultiplierPreservesExplicitZero(t *testing.T) {
+	legacySnapshot := types.PriceData{ModelUserGroupRatio: 0}
+	explicitZeroSnapshot := types.PriceData{
+		ModelUserGroupRatio:    0,
+		HasModelUserGroupRatio: true,
+	}
+
+	assert.Equal(t, 1.0, legacySnapshot.ModelUserGroupMultiplier())
+	assert.Equal(t, 0.0, explicitZeroSnapshot.ModelUserGroupMultiplier())
 }
 
 func TestPriceDataOtherRatiosFilterAndSnapshot(t *testing.T) {

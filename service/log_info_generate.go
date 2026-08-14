@@ -69,6 +69,34 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
+func appendModelPricingSnapshot(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	priceData := &relayInfo.PriceData
+	modelUserGroupRatio := priceData.ModelUserGroupMultiplier()
+	other["user_group"] = relayInfo.UserGroup
+	other["origin_model"] = relayInfo.OriginModelName
+	other["model_user_group_ratio"] = modelUserGroupRatio
+	other["pricing_currency"] = "USD"
+	if priceData.UsePrice {
+		other["pricing_unit"] = "call"
+		other["published_model_price"] = priceData.ModelPrice
+		other["discounted_model_price"] = priceData.ModelPrice * modelUserGroupRatio
+		return
+	}
+	if priceData.ModelRatio == 0 {
+		return
+	}
+	inputPrice := priceData.ModelRatio * 2
+	outputPrice := inputPrice * priceData.CompletionRatio
+	other["pricing_unit"] = "1M_tokens"
+	other["published_input_price"] = inputPrice
+	other["published_output_price"] = outputPrice
+	other["discounted_input_price"] = inputPrice * modelUserGroupRatio
+	other["discounted_output_price"] = outputPrice * modelUserGroupRatio
+}
+
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
 	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
 	other := make(map[string]interface{})
@@ -79,6 +107,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["cache_ratio"] = cacheRatio
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
+	appendModelPricingSnapshot(relayInfo, other)
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
@@ -297,6 +326,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.P
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	appendModelPricingSnapshot(relayInfo, other)
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

@@ -218,12 +218,20 @@ function buildTypeDetailSegments(
     const isPerCall = isPerCallBilling(modelPrice)
     if (isPerCall && modelPrice != null) {
       segments.push({
-        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(modelPrice, priceOpts)}`,
+        text: `${t('Standard')} · ${formatBillingCurrencyFromUSD(other.published_model_price ?? modelPrice, priceOpts)}`,
       })
+      if (other.discounted_model_price != null) {
+        segments.push({
+          text: `${t('Discount')} · ${formatBillingCurrencyFromUSD(other.discounted_model_price, priceOpts)}`,
+        })
+      }
     } else if (other.model_ratio != null) {
-      const inputPriceUSD = other.model_ratio * 2.0
+      const inputPriceUSD =
+        other.published_input_price ?? other.model_ratio * 2.0
       const baseEntries = [formatPriceCompact(inputPriceUSD)]
-      if (other.completion_ratio != null) {
+      if (other.published_output_price != null) {
+        baseEntries.push(formatPriceCompact(other.published_output_price))
+      } else if (other.completion_ratio != null) {
         baseEntries.push(
           formatPriceCompact(inputPriceUSD * other.completion_ratio)
         )
@@ -231,6 +239,20 @@ function buildTypeDetailSegments(
       segments.push({
         text: `${t('Standard')} · ${formatPriceList(baseEntries, true)}`,
       })
+
+      if (other.discounted_input_price != null) {
+        const discountedEntries = [
+          formatPriceCompact(other.discounted_input_price),
+        ]
+        if (other.discounted_output_price != null) {
+          discountedEntries.push(
+            formatPriceCompact(other.discounted_output_price)
+          )
+        }
+        segments.push({
+          text: `${t('Discount')} · ${formatPriceList(discountedEntries, true)}`,
+        })
+      }
 
       if (hasAnyCacheTokens(other)) {
         const cacheEntries = [
@@ -271,6 +293,16 @@ function buildTypeDetailSegments(
         })
       }
     }
+  }
+
+  if (
+    other.model_user_group_ratio != null &&
+    Number.isFinite(other.model_user_group_ratio)
+  ) {
+    segments.push({
+      text: `${t('Model ratio')} ${formatRatioCompact(other.model_user_group_ratio)}x`,
+      muted: true,
+    })
   }
 
   if (other.is_system_prompt_overwritten) {

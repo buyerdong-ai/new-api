@@ -230,7 +230,9 @@ function BillingBreakdown(props: {
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
-  const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+  const baseInputUSD =
+    other.published_input_price ??
+    (other.model_ratio != null ? other.model_ratio * 2.0 : 0)
 
   if (isTieredExpr) {
     rows.push({
@@ -258,26 +260,61 @@ function BillingBreakdown(props: {
     }
   } else if (isPerCall) {
     rows.push({ label: t('Billing Mode'), value: t('Per-call') })
-    if (other.model_price != null) {
+    const publishedModelPrice =
+      other.published_model_price ?? other.model_price
+    if (publishedModelPrice != null) {
       rows.push({
-        label: t('Model Price'),
-        value: fmtPrice(other.model_price),
+        label: t('Standard'),
+        value: fmtPrice(publishedModelPrice),
+      })
+    }
+    if (other.discounted_model_price != null) {
+      rows.push({
+        label: t('Discount'),
+        value: fmtPrice(other.discounted_model_price),
       })
     }
   } else {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
-    if (other.model_ratio != null) {
+    if (baseInputUSD > 0) {
       rows.push({
-        label: t('Input'),
+        label: `${t('Standard')} · ${t('Input')}`,
         value: `${fmtPrice(baseInputUSD)}/M`,
       })
     }
-    if (other.completion_ratio != null && other.model_ratio != null) {
+    const publishedOutputUSD =
+      other.published_output_price ??
+      (other.completion_ratio != null
+        ? baseInputUSD * other.completion_ratio
+        : undefined)
+    if (publishedOutputUSD != null) {
       rows.push({
-        label: t('Output'),
-        value: `${fmtPrice(baseInputUSD * other.completion_ratio)}/M`,
+        label: `${t('Standard')} · ${t('Output')}`,
+        value: `${fmtPrice(publishedOutputUSD)}/M`,
       })
     }
+    if (other.discounted_input_price != null) {
+      rows.push({
+        label: `${t('Discount')} · ${t('Input')}`,
+        value: `${fmtPrice(other.discounted_input_price)}/M`,
+      })
+    }
+    if (other.discounted_output_price != null) {
+      rows.push({
+        label: `${t('Discount')} · ${t('Output')}`,
+        value: `${fmtPrice(other.discounted_output_price)}/M`,
+      })
+    }
+  }
+
+  if (
+    other.model_user_group_ratio != null &&
+    Number.isFinite(other.model_user_group_ratio)
+  ) {
+    rows.push({
+      label: t('Model ratio'),
+      value: `${formatRatio(other.model_user_group_ratio)}x`,
+    })
   }
 
   const userGR = other.user_group_ratio

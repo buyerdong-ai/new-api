@@ -178,6 +178,17 @@ export interface LogOtherData {
   model_price?: number
   group_ratio?: number
   user_group_ratio?: number
+  user_group?: string
+  origin_model?: string
+  model_user_group_ratio?: number
+  published_input_price?: number
+  published_output_price?: number
+  discounted_input_price?: number
+  discounted_output_price?: number
+  published_model_price?: number
+  discounted_model_price?: number
+  pricing_currency?: 'USD' | string
+  pricing_unit?: '1M_tokens' | 'call' | string
   cache_ratio?: number
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number

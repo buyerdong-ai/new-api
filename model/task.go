@@ -117,8 +117,14 @@ type TaskBillingContext struct {
 	ModelPrice      float64            `json:"model_price,omitempty"`       // 模型单价
 	GroupRatio      float64            `json:"group_ratio,omitempty"`       // 分组倍率
 	ModelRatio      float64            `json:"model_ratio,omitempty"`       // 模型倍率
+	HasModelRatio   bool               `json:"has_model_ratio,omitempty"`
+	CompletionRatio float64            `json:"completion_ratio,omitempty"`
+	ModelUserGroupRatio float64         `json:"model_user_group_ratio,omitempty"`
+	HasModelUserGroupRatio bool         `json:"has_model_user_group_ratio,omitempty"`
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
+	UserGroup       string             `json:"user_group,omitempty"`
+	UsingGroup      string             `json:"using_group,omitempty"`
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
 }
 
