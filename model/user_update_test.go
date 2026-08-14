@@ -202,6 +202,36 @@ func TestInsertRejectsDuplicateEmailWithoutUniqueIndex(t *testing.T) {
 	assert.Zero(t, count)
 }
 
+func TestNormalizePhoneCanonicalizesMainlandNumber(t *testing.T) {
+	phone, err := NormalizePhone("+86 138-0013-8000")
+	require.NoError(t, err)
+	assert.Equal(t, "+8613800138000", phone)
+
+	_, err = NormalizePhone("12345")
+	require.Error(t, err)
+}
+
+func TestInsertRejectsDuplicateNormalizedPhone(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	phone := "+8613800138000"
+	require.NoError(t, DB.Create(&User{
+		Username: "phone-existing",
+		Password: "old-password",
+		Phone:    &phone,
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	duplicate := "138 0013 8000"
+	user := &User{
+		Username: "phone-duplicate",
+		Phone:    &duplicate,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	require.ErrorIs(t, user.Insert(0), ErrPhoneAlreadyTaken)
+}
+
 func TestInsertKeepsBlankPasswordForPasswordlessUser(t *testing.T) {
 	setupUserUpdateTestState(t)
 

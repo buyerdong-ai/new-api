@@ -199,6 +199,18 @@ export async function sendEmailVerification(
   return res.data
 }
 
+export async function sendSMSVerification(
+  phone: string,
+  turnstile?: string
+): Promise<ApiResponse> {
+  const res = await api.post(
+    '/api/verification/sms',
+    { phone },
+    { params: { turnstile } }
+  )
+  return res.data
+}
+
 // Bind email to OAuth account
 export async function bindEmail(
   email: string,

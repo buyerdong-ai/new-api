@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -51,9 +52,10 @@ func GetStatus(c *gin.Context) {
 	legalSetting := system_setting.GetLegalSettings()
 
 	data := gin.H{
-		"version":                     common.Version,
-		"start_time":                  common.StartTime,
-		"email_verification":          common.EmailVerificationEnabled,
+		"version":                        common.Version,
+		"start_time":                     common.StartTime,
+		"email_verification":             common.EmailVerificationEnabled,
+		"registration_verification_mode": common.RegistrationVerificationMode,
 		"github_oauth":                common.GitHubOAuthEnabled,
 		"github_client_id":            common.GitHubClientId,
 		"discord_oauth":               system_setting.GetDiscordSettings().Enabled,
@@ -297,6 +299,65 @@ func SendEmailVerification(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func SendSMSVerification(c *gin.Context) {
+	var request struct {
+		Phone string `json:"phone"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	phone, err := model.NormalizePhone(request.Phone)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if common.RegistrationVerificationMode != "phone" && common.RegistrationVerificationMode != "email_or_phone" {
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	if model.IsPhoneAlreadyTaken(phone) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
+	}
+	if err := service.TakeSMSRateLimits(c.Request.Context(), phone, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrSMSRateLimited) {
+			common.ApiErrorI18n(c, i18n.MsgUserSMSRateLimited)
+			return
+		}
+		common.SysLog(fmt.Sprintf("SMS rate limit failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	code, err := service.GenerateSMSCode()
+	if err != nil {
+		common.SysLog(fmt.Sprintf("SMS code generation failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	if err := service.SavePendingSMSCode(c.Request.Context(), phone, service.SMSRegisterPurpose, code); err != nil {
+		common.SysLog(fmt.Sprintf("SMS code persistence failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	if err := service.SendRegistrationSMSCode(c.Request.Context(), phone, code); err != nil {
+		_ = service.DeleteSMSCode(c.Request.Context(), phone, service.SMSRegisterPurpose)
+		common.SysLog(fmt.Sprintf("SMS send failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	if err := service.ActivateSMSCode(c.Request.Context(), phone, service.SMSRegisterPurpose, code); err != nil {
+		_ = service.DeleteSMSCode(c.Request.Context(), phone, service.SMSRegisterPurpose)
+		common.SysLog(fmt.Sprintf("SMS code activation failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
+		return
+	}
+	common.ApiSuccessI18n(c, i18n.MsgUserSMSCodeSent, nil)
 }
 
 func SendPasswordResetEmail(c *gin.Context) {

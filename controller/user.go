@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
@@ -212,32 +213,63 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := common.DecodeJson(c.Request.Body, &user)
+	var request appdto.RegisterRequest
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	user.Username = strings.TrimSpace(user.Username)
-	user.Email = model.NormalizeEmail(user.Email)
-	if user.Username == "" {
+	request.Username = strings.TrimSpace(request.Username)
+	request.Email = model.NormalizeEmail(request.Email)
+	if request.Username == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if err := common.Validate.Struct(&user); err != nil {
+	if err := common.Validate.Struct(&request); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
-	if common.EmailVerificationEnabled {
-		if user.Email == "" || user.VerificationCode == "" {
+
+	verificationMethod := request.Method
+	switch common.RegistrationVerificationMode {
+	case "none":
+		verificationMethod = ""
+	case "email":
+		if verificationMethod == "" {
+			verificationMethod = "email"
+		}
+		if verificationMethod != "email" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+	case "phone":
+		if verificationMethod == "" {
+			verificationMethod = "phone"
+		}
+		if verificationMethod != "phone" {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneVerificationRequired)
+			return
+		}
+	case "email_or_phone":
+		if verificationMethod != "email" && verificationMethod != "phone" {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+	default:
+		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		return
+	}
+
+	if verificationMethod == "email" {
+		if request.Email == "" || request.VerificationCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
+			return
+		}
+		if !common.VerifyCodeWithKey(request.Email, request.VerificationCode, common.EmailVerificationPurpose) {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
-		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
+		if err := model.EnsureEmailAvailable(request.Email, 0); err != nil {
 			if errors.Is(err, model.ErrEmailAlreadyTaken) {
 				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 				return
@@ -246,11 +278,50 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
-	emailForExistCheck := ""
-	if common.EmailVerificationEnabled {
-		emailForExistCheck = user.Email
+
+	phone := ""
+	claimID := ""
+	claimActive := false
+	if verificationMethod == "phone" {
+		if request.Phone == "" || request.VerificationCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneVerificationRequired)
+			return
+		}
+		phone, err = model.NormalizePhone(request.Phone)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if err := model.EnsurePhoneAvailable(phone, 0); err != nil {
+			if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+				common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+				return
+			}
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		claimID, err = common.GenerateKey()
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+			return
+		}
+		if err := service.ClaimSMSCode(c.Request.Context(), phone, service.SMSRegisterPurpose, request.VerificationCode, claimID); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+		claimActive = true
+		defer func() {
+			if claimActive {
+				_ = service.FinishSMSCodeClaim(c.Request.Context(), phone, service.SMSRegisterPurpose, claimID, false)
+			}
+		}()
 	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
+
+	emailForExistCheck := ""
+	if verificationMethod == "email" {
+		emailForExistCheck = request.Email
+	}
+	exist, err := model.CheckUserExistOrDeleted(request.Username, emailForExistCheck)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
@@ -260,25 +331,38 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	affCode := request.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
+		Username:    request.Username,
+		Password:    request.Password,
+		DisplayName: request.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
+	if verificationMethod == "email" {
+		cleanUser.Email = request.Email
+	}
+	if verificationMethod == "phone" {
+		cleanUser.Phone = &phone
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 			return
 		}
+		if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
 		common.ApiError(c, err)
 		return
+	}
+	if claimActive {
+		if err := service.FinishSMSCodeClaim(c.Request.Context(), phone, service.SMSRegisterPurpose, claimID, true); err != nil {
+			common.SysLog(fmt.Sprintf("failed to consume SMS verification claim for user %s: %v", cleanUser.Username, err))
+		}
+		claimActive = false
 	}
 
 	// 获取插入后的用户ID

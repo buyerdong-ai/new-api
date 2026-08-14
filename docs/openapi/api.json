@@ -434,6 +434,50 @@
         ]
       }
     },
+    "/api/verification/sms": {
+      "post": {
+        "summary": "发送手机验证码",
+        "deprecated": false,
+        "description": "🔓 无需鉴权，需要 Redis 和阿里云短信配置",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "description": "中国大陆手机号"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
     "/api/reset_password": {
       "get": {
         "summary": "发送密码重置邮件",
@@ -535,8 +579,19 @@
                   "password": {
                     "type": "string"
                   },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "email",
+                      "phone"
+                    ]
+                  },
                   "email": {
                     "type": "string"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "中国大陆手机号"
                   },
                   "verification_code": {
                     "type": "string"

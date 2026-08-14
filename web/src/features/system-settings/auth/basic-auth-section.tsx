@@ -31,6 +31,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -47,7 +55,12 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const basicAuthSchema = z.object({
   PasswordLoginEnabled: z.boolean(),
   PasswordRegisterEnabled: z.boolean(),
-  EmailVerificationEnabled: z.boolean(),
+  RegistrationVerificationMode: z.enum([
+    'none',
+    'email',
+    'phone',
+    'email_or_phone',
+  ]),
   RegisterEnabled: z.boolean(),
   EmailDomainRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
@@ -179,22 +192,52 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
 
           <FormField
             control={form.control}
-            name='EmailVerificationEnabled'
+            name='RegistrationVerificationMode'
             render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Email Verification')}</FormLabel>
-                  <FormDescription>
-                    {t('Require email verification for new accounts')}
-                  </FormDescription>
-                </SettingsSwitchContent>
+              <FormItem>
+                <FormLabel>{t('Registration Verification')}</FormLabel>
+                <FormDescription>
+                  {t('Choose how new accounts verify their identity')}
+                </FormDescription>
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
+                  <Select
+                    items={[
+                      { value: 'none', label: t('No verification') },
+                      { value: 'email', label: t('Email verification') },
+                      { value: 'phone', label: t('Phone verification') },
+                      {
+                        value: 'email_or_phone',
+                        label: t('Email or phone verification'),
+                      },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue
+                        placeholder={t('Select verification method')}
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='none'>
+                          {t('No verification')}
+                        </SelectItem>
+                        <SelectItem value='email'>
+                          {t('Email verification')}
+                        </SelectItem>
+                        <SelectItem value='phone'>
+                          {t('Phone verification')}
+                        </SelectItem>
+                        <SelectItem value='email_or_phone'>
+                          {t('Email or phone verification')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </FormControl>
-              </SettingsSwitchItem>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

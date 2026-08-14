@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,7 @@ func InitOptionMap() {
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
+	common.OptionMap["RegistrationVerificationMode"] = common.RegistrationVerificationMode
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -190,9 +192,19 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	registrationVerificationMode := ""
 	for _, option := range options {
+		if option.Key == "RegistrationVerificationMode" {
+			registrationVerificationMode = option.Value
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
+			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if registrationVerificationMode != "" {
+		if err := updateOptionMap("RegistrationVerificationMode", registrationVerificationMode); err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
@@ -207,6 +219,14 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == "RegistrationVerificationMode" {
+		switch value {
+		case "none", "email", "phone", "email_or_phone":
+			return nil
+		default:
+			return fmt.Errorf("invalid registration verification mode: %s", value)
+		}
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
@@ -303,6 +323,15 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
+	if key == "RegistrationVerificationMode" {
+		switch value {
+		case "none", "email", "phone", "email_or_phone":
+			common.RegistrationVerificationMode = value
+			common.EmailVerificationEnabled = value == "email" || value == "email_or_phone"
+		default:
+			return fmt.Errorf("invalid registration verification mode: %s", value)
+		}
+	}
 	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
 		boolValue := value == "true"
 		switch key {
@@ -312,6 +341,11 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue
+			if boolValue {
+				common.RegistrationVerificationMode = "email"
+			} else {
+				common.RegistrationVerificationMode = "none"
+			}
 		case "GitHubOAuthEnabled":
 			common.GitHubOAuthEnabled = boolValue
 		case "LinuxDOOAuthEnabled":

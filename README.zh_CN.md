@@ -326,6 +326,10 @@ docker run --name new-api -d --restart always \
 | `CRYPTO_SECRET` | 缓存键 HMAC 密钥；共享 Redis 的节点必须使用相同有效值 | 默认跟随 `SESSION_SECRET` |
 | `SQL_DSN` | 数据库连接字符串                                                     | - |
 | `REDIS_CONN_STRING` | Redis 连接字符串                                                  | - |
+| `ALIYUN_SMS_ACCESS_KEY_ID` | 阿里云短信 AccessKey ID；启用手机注册验证时必填，且必须配置共享 Redis | - |
+| `ALIYUN_SMS_ACCESS_KEY_SECRET` | 阿里云短信 AccessKey Secret；启用手机注册验证时必填 | - |
+| `ALIYUN_SMS_SIGN_NAME` | 已审核通过的阿里云短信签名 | - |
+| `ALIYUN_SMS_TEMPLATE_CODE` | 已审核通过的验证码短信模板 Code，模板参数需包含 `code` | - |
 | `STREAMING_TIMEOUT` | 流式超时时间（秒）                                                    | `300` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | 流式扫描器单行最大缓冲（MB），图像生成等超大 `data:` 片段（如 4K 图片 base64）需适当调大 | `64` |
 | `MAX_REQUEST_BODY_MB` | 请求体最大大小（MB，**解压后**计；防止超大请求/zip bomb 导致内存暴涨），超过将返回 `413` | `32` |

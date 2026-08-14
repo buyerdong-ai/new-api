@@ -123,7 +123,7 @@ export type SiteSettings = {
 export type AuthSettings = {
   PasswordLoginEnabled: boolean
   PasswordRegisterEnabled: boolean
-  EmailVerificationEnabled: boolean
+  RegistrationVerificationMode: 'none' | 'email' | 'phone' | 'email_or_phone'
   RegisterEnabled: boolean
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean

@@ -85,6 +85,7 @@ type User struct {
 	Role             int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
+	Phone            *string                    `json:"phone,omitempty" gorm:"type:varchar(20);uniqueIndex"`
 	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string                     `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
@@ -325,6 +326,50 @@ func EnsureEmailAvailable(email string, excludeUserID int) error {
 	return nil
 }
 
+func NormalizePhone(phone string) (string, error) {
+	phone = strings.NewReplacer(" ", "", "-", "", "(", "", ")", "").Replace(strings.TrimSpace(phone))
+	switch {
+	case strings.HasPrefix(phone, "+86"):
+		phone = phone[3:]
+	case strings.HasPrefix(phone, "0086"):
+		phone = phone[4:]
+	}
+	if len(phone) != 11 || phone[0] != '1' {
+		return "", errors.New("invalid phone number")
+	}
+	for _, digit := range phone {
+		if digit < '0' || digit > '9' {
+			return "", errors.New("invalid phone number")
+		}
+	}
+	return "+86" + phone, nil
+}
+
+func phoneQuery(tx *gorm.DB, phone string) *gorm.DB {
+	if tx == nil {
+		tx = DB
+	}
+	return tx.Unscoped().Model(&User{}).Where("phone = ?", phone)
+}
+
+func EnsurePhoneAvailable(phone string, excludeUserID int) error {
+	if phone == "" {
+		return nil
+	}
+	query := phoneQuery(DB, phone)
+	if excludeUserID > 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrPhoneAlreadyTaken
+	}
+	return nil
+}
+
 // withNormalizedEmailLock serializes concurrent writers that target the same
 // normalized email inside tx, so a "check then write" sequence cannot be raced
 // by two transactions. It must be called inside an active transaction; the lock
@@ -350,6 +395,24 @@ func withNormalizedEmailLock(tx *gorm.DB, email string, fn func(tx *gorm.DB) err
 	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
 		var ids []int
 		if err := tx.Raw("SELECT id FROM users WHERE email = ? FOR UPDATE", email).Scan(&ids).Error; err != nil {
+			return err
+		}
+	}
+	return fn(tx)
+}
+
+func withNormalizedPhoneLock(tx *gorm.DB, phone string, fn func(tx *gorm.DB) error) error {
+	if phone == "" {
+		return fn(tx)
+	}
+	switch {
+	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", "phone:"+phone).Error; err != nil {
+			return err
+		}
+	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
+		var ids []int
+		if err := tx.Raw("SELECT id FROM users WHERE phone = ? FOR UPDATE", phone).Scan(&ids).Error; err != nil {
 			return err
 		}
 	}
@@ -562,6 +625,16 @@ func (user *User) prepareForInsert(tx *gorm.DB) error {
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
 	}
+	if user.Phone != nil {
+		phone, err := NormalizePhone(*user.Phone)
+		if err != nil {
+			return err
+		}
+		user.Phone = &phone
+		if err := ensurePhoneAvailableWithTx(tx, phone, 0); err != nil {
+			return err
+		}
+	}
 	if user.Password == "" {
 		return nil
 	}
@@ -608,23 +681,51 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 	return nil
 }
 
+func ensurePhoneAvailableWithTx(tx *gorm.DB, phone string, excludeUserID int) error {
+	if phone == "" {
+		return nil
+	}
+	query := phoneQuery(tx, phone)
+	if excludeUserID > 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrPhoneAlreadyTaken
+	}
+	return nil
+}
+
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-			if err := user.prepareForInsert(tx); err != nil {
-				return err
+			phone := ""
+			if user.Phone != nil {
+				var err error
+				phone, err = NormalizePhone(*user.Phone)
+				if err != nil {
+					return err
+				}
 			}
-			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
+			return withNormalizedPhoneLock(tx, phone, func(tx *gorm.DB) error {
+				if err := user.prepareForInsert(tx); err != nil {
+					return err
+				}
+				user.Quota = common.QuotaForNewUser
+				user.AffCode = common.GetRandomString(4)
 
-			// 初始化用户设置，包括默认的边栏配置
-			if user.Setting == "" {
-				defaultSetting := dto.UserSetting{}
-				// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
-				user.SetSetting(defaultSetting)
-			}
+				// 初始化用户设置，包括默认的边栏配置
+				if user.Setting == "" {
+					defaultSetting := dto.UserSetting{}
+					// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
+					user.SetSetting(defaultSetting)
+				}
 
-			return tx.Create(user).Error
+				return tx.Create(user).Error
+			})
 		})
 	}); err != nil {
 		return err
@@ -675,19 +776,29 @@ func (user *User) FinishInsert(inviterId int) {
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
 func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-		if err := user.prepareForInsert(tx); err != nil {
-			return err
+		phone := ""
+		if user.Phone != nil {
+			var err error
+			phone, err = NormalizePhone(*user.Phone)
+			if err != nil {
+				return err
+			}
 		}
-		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
+		return withNormalizedPhoneLock(tx, phone, func(tx *gorm.DB) error {
+			if err := user.prepareForInsert(tx); err != nil {
+				return err
+			}
+			user.Quota = common.QuotaForNewUser
+			user.AffCode = common.GetRandomString(4)
 
-		// 初始化用户设置
-		if user.Setting == "" {
-			defaultSetting := dto.UserSetting{}
-			user.SetSetting(defaultSetting)
-		}
+			// 初始化用户设置
+			if user.Setting == "" {
+				defaultSetting := dto.UserSetting{}
+				user.SetSetting(defaultSetting)
+			}
 
-		return tx.Create(user).Error
+			return tx.Create(user).Error
+		})
 	})
 }
 

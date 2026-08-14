@@ -34,9 +34,11 @@ export interface TwoFAPayload {
 }
 
 export interface RegisterPayload {
+  method?: 'email' | 'phone'
   username: string
   password: string
   email?: string
+  phone?: string
   verification_code?: string
   aff_code?: string
   turnstile?: string
@@ -51,6 +53,12 @@ export interface EmailVerificationPayload {
   email: string
   turnstile?: string
 }
+
+export type RegistrationVerificationMode =
+  | 'none'
+  | 'email'
+  | 'phone'
+  | 'email_or_phone'
 
 export interface BindEmailPayload {
   email: string
@@ -119,6 +127,7 @@ export interface SystemStatus {
     turnstile_check?: boolean
     turnstile_site_key?: string
     email_verification?: boolean
+    registration_verification_mode?: RegistrationVerificationMode
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
     display_token_stat_enabled?: boolean
@@ -164,6 +173,7 @@ export interface SystemStatus {
   turnstile_check?: boolean
   turnstile_site_key?: string
   email_verification?: boolean
+  registration_verification_mode?: RegistrationVerificationMode
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
   display_token_stat_enabled?: boolean
