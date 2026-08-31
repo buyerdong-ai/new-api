@@ -25,6 +25,7 @@ import {
 } from './section-registry.tsx'
 
 const defaultBillingSettings: BillingSettings = {
+  ServerAddress: '',
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
   QuotaForInviter: 0,
@@ -80,6 +81,14 @@ const defaultBillingSettings: BillingSettings = {
   StripeUnitPrice: 8.0,
   StripeMinTopUp: 1,
   StripePromotionCodesEnabled: false,
+  WeChatPayAppID: '',
+  WeChatPayMchID: '',
+  WeChatPayMchCertificateSerial: '',
+  WeChatPayMchPrivateKey: '',
+  WeChatPayAPIv3Key: '',
+  WeChatPayPlatformCertificate: '',
+  WeChatPayPublicKeyID: '',
+  WeChatPayPublicKey: '',
   CreemApiKey: '',
   CreemWebhookSecret: '',
   CreemTestMode: false,

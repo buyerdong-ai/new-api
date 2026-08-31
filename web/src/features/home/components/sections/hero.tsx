@@ -30,8 +30,6 @@ interface HeroProps {
   isAuthenticated?: boolean
 }
 
-
-
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
 
@@ -96,9 +94,7 @@ export function Hero(props: HeroProps) {
             <Button
               className='group h-11 rounded-lg px-5 text-sm font-medium'
               render={
-                <Link
-                  to={props.isAuthenticated ? '/dashboard' : '/sign-up'}
-                />
+                <Link to={props.isAuthenticated ? '/dashboard' : '/sign-up'} />
               }
             >
               {props.isAuthenticated ? t('Go to Dashboard') : t('Get Started')}

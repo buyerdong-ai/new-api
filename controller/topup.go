@@ -52,6 +52,25 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableWeChatPay := isWeChatPayTopUpEnabled()
+	if enableWeChatPay {
+		hasWeChatPay := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentProviderWeChatPay {
+				hasWeChatPay = true
+				break
+			}
+		}
+		if !hasWeChatPay {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "WeChat Pay",
+				"type":      model.PaymentProviderWeChatPay,
+				"color":     "#07C160",
+				"min_topup": strconv.Itoa(operation_setting.MinTopUp),
+			})
+		}
+	}
+
 	// Waffo Pancake is displayed above the standard Waffo gateway.
 	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
 	if enableWaffoPancake {
@@ -97,6 +116,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_wechat_pay_topup":          enableWeChatPay,
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
@@ -502,6 +522,20 @@ func AdminCompleteTopUp(c *gin.Context) {
 	// 订单级互斥，防止并发补单
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
+
+	topUp := model.GetTopUpByTradeNo(req.TradeNo)
+	if topUp == nil {
+		common.ApiErrorMsg(c, "充值订单不存在")
+		return
+	}
+	if topUp.PaymentProvider == model.PaymentProviderWeChatPay {
+		if err := queryAndCompleteWeChatTopUp(c.Request.Context(), req.TradeNo, c.ClientIP()); err != nil {
+			common.ApiErrorMsg(c, "微信支付订单尚未通过支付验证: "+err.Error())
+			return
+		}
+		common.ApiSuccess(c, nil)
+		return
+	}
 
 	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
 		common.ApiError(c, err)

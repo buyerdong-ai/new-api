@@ -318,11 +318,15 @@ func SendSMSVerification(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
 		return
 	}
-	if model.IsPhoneAlreadyTaken(phone) {
+	if err := model.EnsurePhoneAvailable(phone, 0); errors.Is(err, model.ErrPhoneAlreadyTaken) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
 		})
+		return
+	} else if err != nil {
+		common.SysLog(fmt.Sprintf("phone availability check failed: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserSMSUnavailable)
 		return
 	}
 	if err := service.TakeSMSRateLimits(c.Request.Context(), phone, c.ClientIP()); err != nil {

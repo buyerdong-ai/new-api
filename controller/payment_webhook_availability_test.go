@@ -167,3 +167,47 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	operation_setting.PayMethods = nil
 	require.False(t, isEpayWebhookEnabled())
 }
+
+func TestWeChatPayWebhookEnabledRequiresCompleteConfig(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalAppID := setting.WeChatPayAppID
+	originalMchID := setting.WeChatPayMchID
+	originalSerial := setting.WeChatPayMchCertificateSerial
+	originalPrivateKey := setting.WeChatPayMchPrivateKey
+	originalAPIv3Key := setting.WeChatPayAPIv3Key
+	originalPlatformCertificate := setting.WeChatPayPlatformCertificate
+	originalPublicKeyID := setting.WeChatPayPublicKeyID
+	originalPublicKey := setting.WeChatPayPublicKey
+	t.Cleanup(func() {
+		setting.WeChatPayAppID = originalAppID
+		setting.WeChatPayMchID = originalMchID
+		setting.WeChatPayMchCertificateSerial = originalSerial
+		setting.WeChatPayMchPrivateKey = originalPrivateKey
+		setting.WeChatPayAPIv3Key = originalAPIv3Key
+		setting.WeChatPayPlatformCertificate = originalPlatformCertificate
+		setting.WeChatPayPublicKeyID = originalPublicKeyID
+		setting.WeChatPayPublicKey = originalPublicKey
+	})
+
+	setting.WeChatPayAppID = "wx-app-id"
+	setting.WeChatPayMchID = "merchant-id"
+	setting.WeChatPayMchCertificateSerial = "certificate-serial"
+	setting.WeChatPayMchPrivateKey = "private-key"
+	setting.WeChatPayAPIv3Key = "short-key"
+	setting.WeChatPayPlatformCertificate = "platform-certificate"
+	setting.WeChatPayPublicKeyID = ""
+	setting.WeChatPayPublicKey = ""
+	require.False(t, isWeChatPayWebhookEnabled())
+
+	setting.WeChatPayAPIv3Key = "12345678901234567890123456789012"
+	require.True(t, isWeChatPayWebhookEnabled())
+
+	setting.WeChatPayPlatformCertificate = ""
+	require.False(t, isWeChatPayWebhookEnabled())
+
+	setting.WeChatPayPublicKeyID = "PUB_KEY_ID_0000000000000000000000000000000000"
+	require.False(t, isWeChatPayWebhookEnabled())
+
+	setting.WeChatPayPublicKey = "public-key"
+	require.True(t, isWeChatPayWebhookEnabled())
+}

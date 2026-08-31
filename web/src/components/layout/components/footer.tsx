@@ -126,11 +126,17 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
   const { t } = useTranslation()
   const content = (
-    <span className='text-muted-foreground/45'>  &copy; {props.currentYear} 达智聚元   </span> )
-   if (props.inline) {
-       return content  }
-      
- return (
+    <span className='text-muted-foreground/45'>
+      {' '}
+      &copy; {props.currentYear} 达智聚元{' '}
+      {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
+    </span>
+  )
+  if (props.inline) {
+    return content
+  }
+
+  return (
     <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
       {content}
     </div>

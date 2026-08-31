@@ -110,10 +110,16 @@ func (aliyunSMSCodeSender) SendVerificationCode(ctx context.Context, phone, code
 		return fmt.Errorf("send SMS request: %w", err)
 	}
 	defer response.Body.Close()
+	var result aliyunSMSResponse
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		if err := common.DecodeJson(response.Body, &result); err == nil && (result.Code != "" || result.Message != "") {
+			if result.Message == "" {
+				result.Message = result.Code
+			}
+			return fmt.Errorf("send SMS request: Aliyun %s: %s", result.Code, result.Message)
+		}
 		return fmt.Errorf("send SMS request: unexpected status %d", response.StatusCode)
 	}
-	var result aliyunSMSResponse
 	if err := common.DecodeJson(response.Body, &result); err != nil {
 		return fmt.Errorf("decode SMS response: %w", err)
 	}

@@ -134,6 +134,7 @@ const BILLING_SECTIONS = [
     titleKey: 'Payment Gateway',
     build: (settings: BillingSettings) => (
       <PaymentSettingsSection
+        serverAddress={settings.ServerAddress}
         defaultValues={{
           PayAddress: settings.PayAddress,
           EpayId: settings.EpayId,
@@ -150,6 +151,14 @@ const BILLING_SECTIONS = [
           StripeUnitPrice: settings.StripeUnitPrice,
           StripeMinTopUp: settings.StripeMinTopUp,
           StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,
+          WeChatPayAppID: settings.WeChatPayAppID,
+          WeChatPayMchID: settings.WeChatPayMchID,
+          WeChatPayMchCertificateSerial: settings.WeChatPayMchCertificateSerial,
+          WeChatPayMchPrivateKey: settings.WeChatPayMchPrivateKey,
+          WeChatPayAPIv3Key: settings.WeChatPayAPIv3Key,
+          WeChatPayPlatformCertificate: settings.WeChatPayPlatformCertificate,
+          WeChatPayPublicKeyID: settings.WeChatPayPublicKeyID,
+          WeChatPayPublicKey: settings.WeChatPayPublicKey,
           CreemApiKey: settings.CreemApiKey,
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,

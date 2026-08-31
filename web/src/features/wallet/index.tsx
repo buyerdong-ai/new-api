@@ -29,6 +29,7 @@ import { BillingHistoryDialog } from './components/dialogs/billing-history-dialo
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { WeChatPaymentDialog } from './components/dialogs/wechat-payment-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -96,6 +97,8 @@ export function Wallet(props: WalletProps) {
     processing,
     calculatePaymentAmount,
     processPayment,
+    weChatPayment,
+    clearWeChatPayment,
   } = usePayment()
   const {
     affiliateLink,
@@ -207,7 +210,9 @@ export function Wallet(props: WalletProps) {
 
     if (success) {
       setConfirmDialogOpen(false)
-      await fetchUser()
+      if (selectedPaymentMethod.type !== 'wechat_pay') {
+        await fetchUser()
+      }
     }
   }
 
@@ -371,6 +376,23 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleTransfer}
         availableQuota={user?.aff_quota ?? 0}
         transferring={transferring}
+      />
+
+      <WeChatPaymentDialog
+        open={weChatPayment !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            clearWeChatPayment()
+            void fetchUser()
+          }
+        }}
+        onPaymentConfirmed={() => {
+          clearWeChatPayment()
+          void fetchUser()
+        }}
+        codeUrl={weChatPayment?.codeUrl ?? ''}
+        tradeNo={weChatPayment?.tradeNo ?? ''}
+        paymentAmount={paymentAmount}
       />
 
       <BillingHistoryDialog

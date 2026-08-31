@@ -27,6 +27,7 @@ import {
   calculateWaffoPancakeAmount,
   requestPayment,
   requestStripePayment,
+  requestWeChatPayment,
   isApiSuccess,
 } from '../api'
 import {
@@ -83,6 +84,10 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [weChatPayment, setWeChatPayment] = useState<{
+    codeUrl: string
+    tradeNo: string
+  } | null>(null)
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -112,25 +117,44 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isWeChat = paymentType === 'wechat_pay'
         const amount = Math.floor(topupAmount)
 
-        const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-            })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+        let response
+        if (isWeChat) {
+          response = await requestWeChatPayment({ amount })
+        } else if (isStripe) {
+          response = await requestStripePayment({
+            amount,
+            payment_method: 'stripe',
+          })
+        } else {
+          response = await requestPayment({
+            amount,
+            payment_method: paymentType,
+          })
+        }
 
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
 
+        if (isWeChat && response.data && 'code_url' in response.data) {
+          setWeChatPayment({
+            codeUrl: response.data.code_url as string,
+            tradeNo: response.data.trade_no as string,
+          })
+          return true
+        }
+
         // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
+        if (
+          isStripe &&
+          response.data &&
+          'pay_link' in response.data &&
+          response.data.pay_link
+        ) {
           window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
@@ -163,6 +187,8 @@ export function usePayment() {
     processing,
     calculatePaymentAmount,
     processPayment,
+    weChatPayment,
+    clearWeChatPayment: () => setWeChatPayment(null),
     setAmount,
   }
 }

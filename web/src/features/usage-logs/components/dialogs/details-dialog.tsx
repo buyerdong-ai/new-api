@@ -260,8 +260,7 @@ function BillingBreakdown(props: {
     }
   } else if (isPerCall) {
     rows.push({ label: t('Billing Mode'), value: t('Per-call') })
-    const publishedModelPrice =
-      other.published_model_price ?? other.model_price
+    const publishedModelPrice = other.published_model_price ?? other.model_price
     if (publishedModelPrice != null) {
       rows.push({
         label: t('Standard'),

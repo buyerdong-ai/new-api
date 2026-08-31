@@ -287,6 +287,8 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&PaymentHealthMetric{},
+		&WeChatPayReconciliation{},
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
@@ -294,6 +296,9 @@ func migrateDB() error {
 		&AuthzRole{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := ensureTopUpProviderTradeNoIndex(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -394,6 +399,14 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func ensureTopUpProviderTradeNoIndex() error {
+	const indexName = "ux_top_ups_provider_trade_no"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		return DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS "` + indexName + `" ON "top_ups" ("provider_trade_no")`).Error
+	}
+	return DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `" + indexName + "` ON `top_ups` (`provider_trade_no`)").Error
 }
 
 func migrateLOGDB() error {

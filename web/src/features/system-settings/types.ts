@@ -248,6 +248,7 @@ export type ModelSettings = {
 }
 
 export type BillingSettings = {
+  ServerAddress: string
   QuotaForNewUser: number
   PreConsumedQuota: number
   QuotaForInviter: number
@@ -303,6 +304,14 @@ export type BillingSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  WeChatPayAppID: string
+  WeChatPayMchID: string
+  WeChatPayMchCertificateSerial: string
+  WeChatPayMchPrivateKey: string
+  WeChatPayAPIv3Key: string
+  WeChatPayPlatformCertificate: string
+  WeChatPayPublicKeyID: string
+  WeChatPayPublicKey: string
   CreemApiKey: string
   CreemWebhookSecret: string
   CreemTestMode: boolean
